@@ -1,0 +1,14 @@
+[
+  {
+    "type": "section",
+    "text": {
+      "type": "mrkdwn",
+      "text": "Cloud Build *{{.Params.buildStatus}}*\nProject: `{{.Build.ProjectId}}`\nTrigger: `{{index .Build.Substitutions \"TRIGGER_NAME\"}}`\nBuild: `{{.Build.Id}}`"
+    }
+  },
+  {
+    "type": "section",
+    "text": {"type": "mrkdwn", "text": "<{{.Build.LogUrl}}|Open Cloud Build logs>"}
+  }
+]
+

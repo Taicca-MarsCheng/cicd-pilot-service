@@ -1,0 +1,23 @@
+apiVersion: cloud-build-notifiers/v1
+kind: SlackNotifier
+metadata:
+  name: cicd-slack-notifier
+spec:
+  notification:
+    filter: >-
+      build.status == Build.Status.SUCCESS ||
+      build.status == Build.Status.FAILURE ||
+      build.status == Build.Status.TIMEOUT ||
+      build.status == Build.Status.CANCELLED
+    params:
+      buildStatus: $(build.status)
+    delivery:
+      webhookUrl:
+        secretRef: slack-webhook-url
+    template:
+      type: golang
+      uri: gs://PROJECT_ID-cloud-build-notifiers/slack.json
+  secrets:
+    - name: slack-webhook-url
+      value: projects/PROJECT_ID/secrets/cicd-slack-webhook-url/versions/latest
+

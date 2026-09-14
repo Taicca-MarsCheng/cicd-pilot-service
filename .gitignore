@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+.security-diff.patch
+.vertex-review.json
+.venv/
+

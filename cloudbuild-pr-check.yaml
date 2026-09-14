@@ -1,0 +1,62 @@
+# PR security gate (system specification sections 3.1 and 4).
+# IMPORTANT: onboarding stores this config inline in the trigger. The bootstrap
+# step then loads scanners from protected main, so a PR cannot replace its gate.
+steps:
+  - id: load-trusted-security-gate
+    name: gcr.io/cloud-builders/git
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        rm -rf /workspace/.trusted-security
+        mkdir -p /workspace/.trusted-security
+        git fetch --no-tags --depth=1 origin main
+        git archive FETCH_HEAD .security scripts/security-gate \
+          | tar -x -C /workspace/.trusted-security
+        chmod +x /workspace/.trusted-security/scripts/security-gate/run_gitleaks.sh
+
+  # Specification 3.1 step 2: any Gitleaks match blocks the PR.
+  - id: gitleaks-scan
+    name: ghcr.io/gitleaks/gitleaks:v8.29.0
+    entrypoint: /bin/sh
+    env:
+      - REPO_ROOT=/workspace
+      - BASE_REF=origin/${_BASE_BRANCH}
+      - DIFF_OUTPUT=/workspace/.security-diff.patch
+      - CHANGED_FILES_OUTPUT=/workspace/.security-changed-files.txt
+    args:
+      - /workspace/.trusted-security/scripts/security-gate/run_gitleaks.sh
+
+  # Specification 3.1 step 3 and 4.4: structured Vertex AI review.
+  - id: vertex-ai-review
+    name: python:3.12-slim
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        python -m pip install --no-cache-dir \
+          --requirement /workspace/.trusted-security/scripts/security-gate/requirements.txt
+        python /workspace/.trusted-security/scripts/security-gate/run_vertex_review.py \
+          --project '${PROJECT_ID}' \
+          --location '${_REGION}' \
+          --model '${_AI_MODEL}' \
+          --repo '${REPO_NAME}' \
+          --pr-number '${_PR_NUMBER}' \
+          --diff-file /workspace/.security-diff.patch \
+          --changed-files-file /workspace/.security-changed-files.txt \
+          --prompt-file /workspace/.trusted-security/.security/vertex-ai-prompt.md \
+          --output /workspace/.vertex-review.json
+
+substitutions:
+  _SERVICE_NAME: cicd-pilot-service
+  _REGION: asia-east1
+  _RUNTIME_SA: sa-cicd-pilot-service@taicca-geminiapi.iam.gserviceaccount.com
+  # Confirm this alias/model ID in Vertex AI immediately before onboarding.
+  _AI_MODEL: gemini-flash-latest
+
+options:
+  dynamicSubstitutions: true
+  logging: CLOUD_LOGGING_ONLY
+
+timeout: 600s
+

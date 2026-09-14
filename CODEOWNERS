@@ -1,0 +1,6 @@
+/cloudbuild-pr-check.yaml   @fantasyjack99
+/cloudbuild-deploy.yaml     @fantasyjack99
+/.security/                 @fantasyjack99
+/scripts/security-gate/     @fantasyjack99
+/CODEOWNERS                 @fantasyjack99
+
