@@ -16,7 +16,16 @@ substitution。
    Editor、Service Account Admin、Artifact Registry Admin 等所需權限。
 4. 在 GCP Activity 頁開啟即時活動記錄，逐項核對腳本建立的資源。
 
-預期結果：尚未建立或修改任何雲端資源；已知道要使用的 Vertex AI model ID。
+用目前 Cloud Build 設定取得實際預設執行身份（新舊 GCP 專案可能不同）：
+
+```bash
+gcloud builds get-default-service-account \
+  --project=taicca-geminiapi --region=asia-east1
+```
+
+預期結果：尚未建立或修改任何雲端資源；已知道 Vertex AI model ID 與 Cloud
+Build Service Account。Onboarding 會使用並顯示這個身份；只有需要刻意覆寫時才設
+`BUILD_SA_EMAIL`。
 
 ## 1. 建立 private GitHub repo 並推送初始版本
 

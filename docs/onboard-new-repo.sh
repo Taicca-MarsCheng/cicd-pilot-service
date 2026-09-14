@@ -30,6 +30,11 @@ readonly REGION="${2:-asia-east1}"
 [[ "${REGION}" =~ ^[a-z]+-[a-z]+[0-9]+$ ]] || die "invalid GCP region"
 [[ "${PUBLIC_ACCESS}" == "true" || "${PUBLIC_ACCESS}" == "false" ]] \
   || die "PUBLIC_ACCESS must be true or false"
+[[ "${PROJECT_ID}" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || die "invalid project ID"
+[[ "${GITHUB_CONNECTION}" =~ ^[A-Za-z0-9._-]+$ ]] || die "invalid connection name"
+[[ "${ARTIFACT_REPOSITORY}" =~ ^[a-z][a-z0-9._-]{1,61}[a-z0-9]$ ]] \
+  || die "invalid Artifact Registry repository name"
+[[ "${AI_MODEL}" =~ ^[A-Za-z0-9._-]+$ ]] || die "invalid Vertex AI model ID"
 
 for command_name in gcloud git; do
   command -v "${command_name}" >/dev/null 2>&1 \
@@ -42,10 +47,6 @@ cd "${repo_root}"
 active_account=$(gcloud auth list --filter=status:ACTIVE --format='value(account)' | head -n 1)
 [[ -n "${active_account}" ]] || die "no active gcloud account; run gcloud auth login first"
 
-project_number=$(gcloud projects describe "${PROJECT_ID}" \
-  --format='value(projectNumber)')
-[[ -n "${project_number}" ]] || die "cannot resolve project number for ${PROJECT_ID}"
-readonly BUILD_SA_EMAIL="${BUILD_SA_EMAIL:-${project_number}@cloudbuild.gserviceaccount.com}"
 readonly RUNTIME_SA_NAME="sa-${REPO_NAME}"
 readonly RUNTIME_SA_EMAIL="${RUNTIME_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 readonly REPOSITORY_RESOURCE="projects/${PROJECT_ID}/locations/${REGION}/connections/${GITHUB_CONNECTION}/repositories/${REPO_NAME}"
@@ -61,6 +62,15 @@ for api in \
     --filter="config.name=${api}" --format='value(config.name)')
   [[ "${enabled}" == "${api}" ]] || die "required API is not enabled: ${api}"
 done
+
+default_build_sa_resource=$(gcloud builds get-default-service-account \
+  --project="${PROJECT_ID}" --region="${REGION}" \
+  --format='value(serviceAccountEmail)')
+default_build_sa_email=${default_build_sa_resource##*/}
+readonly BUILD_SA_EMAIL="${BUILD_SA_EMAIL:-${default_build_sa_email}}"
+[[ -n "${BUILD_SA_EMAIL}" ]] || die "cannot resolve the Cloud Build default service account"
+[[ "${BUILD_SA_EMAIL}" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+$ ]] \
+  || die "invalid build service account email"
 
 gcloud builds connections describe "${GITHUB_CONNECTION}" \
   --project="${PROJECT_ID}" --region="${REGION}" >/dev/null \
@@ -83,6 +93,7 @@ done
 echo "Plan:"
 echo "  project:             ${PROJECT_ID}"
 echo "  repository:          ${REPOSITORY_RESOURCE}"
+echo "  build identity:      ${BUILD_SA_EMAIL}"
 echo "  runtime identity:    ${RUNTIME_SA_EMAIL}"
 echo "  artifact repository: ${ARTIFACT_REPOSITORY} (${REGION})"
 echo "  public access:       ${PUBLIC_ACCESS}"
@@ -118,6 +129,7 @@ fi
 for role in \
   roles/aiplatform.user \
   roles/artifactregistry.writer \
+  roles/logging.logWriter \
   roles/run.admin; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member="serviceAccount:${BUILD_SA_EMAIL}" \

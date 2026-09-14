@@ -10,8 +10,12 @@ steps:
       - |
         rm -rf /workspace/.trusted-security
         mkdir -p /workspace/.trusted-security
-        git fetch --no-tags --depth=1 origin main
-        git archive FETCH_HEAD .security scripts/security-gate \
+        trusted_ref=origin/main
+        if ! git rev-parse --verify --quiet "$${trusted_ref}^{commit}" >/dev/null; then
+          git fetch --no-tags --depth=1 origin main
+          trusted_ref=FETCH_HEAD
+        fi
+        git archive "$${trusted_ref}" .security scripts/security-gate \
           | tar -x -C /workspace/.trusted-security
         chmod +x /workspace/.trusted-security/scripts/security-gate/run_gitleaks.sh
 
@@ -59,4 +63,3 @@ options:
   logging: CLOUD_LOGGING_ONLY
 
 timeout: 600s
-
