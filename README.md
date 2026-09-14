@@ -17,7 +17,8 @@ Registry、零流量 candidate 與通過健康檢查後的流量切換。
 |---|---|---|
 | GCP project | `taicca-geminiapi` | 不變 |
 | Region | `asia-east1` | 依服務確認 |
-| GitHub connection | `github-fantasyjack99` | 測試完成後改為 `github` |
+| GitHub account | `Taicca-MarsCheng` | 試點 repo owner |
+| GitHub connection | `github-taicca-marscheng` | 測試完成後改為 `github` |
 | Artifact Registry | `cicd-services` | 共用 repository |
 | Cloud Run access | public | 正式環境設為 private |
 | PR Medium/Low 結果 | GitHub Check 與 Cloud Build Log | 不使用額外 GitHub Token |
@@ -56,4 +57,3 @@ python3 -m py_compile app/main.py scripts/security-gate/run_vertex_review.py
 shellcheck docs/*.sh scripts/security-gate/*.sh
 yamllint cloudbuild-pr-check.yaml cloudbuild-deploy.yaml templates/slack-notifier.yaml.tmpl
 ```
-

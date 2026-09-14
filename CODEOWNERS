@@ -1,6 +1,5 @@
-/cloudbuild-pr-check.yaml   @fantasyjack99
-/cloudbuild-deploy.yaml     @fantasyjack99
-/.security/                 @fantasyjack99
-/scripts/security-gate/     @fantasyjack99
-/CODEOWNERS                 @fantasyjack99
-
+/cloudbuild-pr-check.yaml   @Taicca-MarsCheng
+/cloudbuild-deploy.yaml     @Taicca-MarsCheng
+/.security/                 @Taicca-MarsCheng
+/scripts/security-gate/     @Taicca-MarsCheng
+/CODEOWNERS                 @Taicca-MarsCheng

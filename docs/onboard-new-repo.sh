@@ -4,7 +4,7 @@
 set -euo pipefail
 
 readonly PROJECT_ID="${PROJECT_ID:-taicca-geminiapi}"
-readonly GITHUB_CONNECTION="${GITHUB_CONNECTION:-github-fantasyjack99}"
+readonly GITHUB_CONNECTION="${GITHUB_CONNECTION:-github-taicca-marscheng}"
 readonly ARTIFACT_REPOSITORY="${ARTIFACT_REPOSITORY:-cicd-services}"
 readonly AI_MODEL="${AI_MODEL:-gemini-flash-latest}"
 readonly PUBLIC_ACCESS="${PUBLIC_ACCESS:-true}"

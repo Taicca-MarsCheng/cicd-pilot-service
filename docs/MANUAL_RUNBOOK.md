@@ -1,6 +1,6 @@
 # CI/CD 試點人工操作手冊
 
-本手冊中的指令會變更 `fantasyjack99` GitHub 帳號及
+本手冊中的指令會變更 `Taicca-MarsCheng` GitHub 帳號及
 `taicca-geminiapi` GCP 正式專案。請逐段確認後由管理員執行。不要把 Slack
 Webhook、API Key 或任何密鑰貼進 terminal history、repo、PR 或 Cloud Build
 substitution。
@@ -31,7 +31,7 @@ Build Service Account。Onboarding 會使用並顯示這個身份；只有需要
 
 到 GitHub 網頁右上角 `+` → **New repository**：
 
-- Owner：`fantasyjack99`
+- Owner：`Taicca-MarsCheng`
 - Repository name：`cicd-pilot-service`
 - Visibility：**Private**
 - 不要勾選 README、`.gitignore` 或 license 初始化
@@ -39,9 +39,17 @@ Build Service Account。Onboarding 會使用並顯示這個身份；只有需要
 在本 repo 根目錄執行：
 
 ```bash
-git remote add origin git@github.com:fantasyjack99/cicd-pilot-service.git
+git remote add origin git@github.com:Taicca-MarsCheng/cicd-pilot-service.git
 git branch -M main
 git push -u origin main
+```
+
+若同一台 Mac 同時使用個人與公司 GitHub 帳號，請為公司帳號建立獨立
+SSH key，並只在這個 repo 指定它，避免 SSH 自動選到個人帳號：
+
+```bash
+git config core.sshCommand \
+  'ssh -i /Users/zhengguohong/.ssh/id_ed25519_taicca -o IdentitiesOnly=yes'
 ```
 
 預期結果：GitHub private repo 的 `main` 顯示本交付物；push 沒有包含憑證或
@@ -96,18 +104,18 @@ gcloud projects add-iam-policy-binding taicca-geminiapi \
    `asia-east1`。
 3. 選 **Create host connection → GitHub**，安裝/授權 Google Cloud Build
    GitHub App，只授權需要的 repo。
-4. Connection name 填 `github-fantasyjack99`。
+4. Connection name 填 `github-taicca-marscheng`。
 5. 在該 connection 下選 **Link repository**，連接
-   `fantasyjack99/cicd-pilot-service`；repository resource name 填
+   `Taicca-MarsCheng/cicd-pilot-service`；repository resource name 填
    `cicd-pilot-service`。
 
 以唯讀指令確認：
 
 ```bash
-gcloud builds connections describe github-fantasyjack99 \
+gcloud builds connections describe github-taicca-marscheng \
   --project=taicca-geminiapi --region=asia-east1
 gcloud builds repositories describe cicd-pilot-service \
-  --connection=github-fantasyjack99 \
+  --connection=github-taicca-marscheng \
   --project=taicca-geminiapi --region=asia-east1
 ```
 
