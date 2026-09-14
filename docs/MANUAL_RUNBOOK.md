@@ -74,6 +74,23 @@ gcloud services enable \
 
 ## 3. 安裝 Cloud Build GitHub App 與第 2 代連線
 
+Cloud Build 在初次建立 GitHub connection 時，會在 Secret Manager 建立授權
+token secret。先取得專案編號，並暫時授予 **Cloud Build Service Agent**
+Secret Manager Admin（不是授予 Build Service Account）：
+
+```bash
+PROJECT_NUMBER="$(gcloud projects describe taicca-geminiapi \
+  --format='value(projectNumber)')"
+CLOUD_BUILD_SERVICE_AGENT="service-${PROJECT_NUMBER}@gcp-sa-cloudbuild.iam.gserviceaccount.com"
+gcloud projects add-iam-policy-binding taicca-geminiapi \
+  --member="serviceAccount:${CLOUD_BUILD_SERVICE_AGENT}" \
+  --role=roles/secretmanager.admin \
+  --condition=None
+```
+
+預期結果：IAM policy 顯示該 Service Agent 暫時擁有
+`roles/secretmanager.admin`。
+
 1. 開啟 Google Cloud Console，切換專案 `taicca-geminiapi`。
 2. 進入 **Cloud Build → Repositories → 2nd gen**，Region 選
    `asia-east1`。
@@ -95,6 +112,18 @@ gcloud builds repositories describe cicd-pilot-service \
 ```
 
 預期結果：connection 狀態為 ready，repository 顯示正確 GitHub remote URI。
+
+Connection 狀態確認為 `COMPLETE` 後，立即撤回剛才的暫時專案層級角色：
+
+```bash
+gcloud projects remove-iam-policy-binding taicca-geminiapi \
+  --member="serviceAccount:${CLOUD_BUILD_SERVICE_AGENT}" \
+  --role=roles/secretmanager.admin \
+  --condition=None
+```
+
+預期結果：connection 與其 Secret Manager token 繼續有效，Service Agent 不再
+擁有專案層級 Secret Manager Admin。
 
 ## 4. 執行 onboarding
 
