@@ -5,7 +5,8 @@ metadata:
 spec:
   notification:
     filter: >-
-      build.status == Build.Status.SUCCESS ||
+      (build.status == Build.Status.SUCCESS &&
+      build.substitutions["TRIGGER_NAME"].endsWith("-deploy")) ||
       build.status == Build.Status.FAILURE ||
       build.status == Build.Status.TIMEOUT ||
       build.status == Build.Status.CANCELLED
@@ -20,4 +21,3 @@ spec:
   secrets:
     - name: slack-webhook-url
       value: projects/PROJECT_ID/secrets/cicd-slack-webhook-url/versions/latest
-

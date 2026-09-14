@@ -188,8 +188,8 @@ push，預期新的 check 通過。
 - `templates/slack.json`
 
 先把 YAML 中兩個 `PROJECT_ID` 替換成 `taicca-geminiapi`，並把 JSON 上傳到
-YAML 指定的 GCS URI。Notifier 應訂閱 `cloud-builds` topic，filter 已限制為
-SUCCESS、FAILURE、TIMEOUT、CANCELLED 終態。
+YAML 指定的 GCS URI。Notifier 應訂閱 `cloud-builds` topic；filter 只通知部署
+SUCCESS，以及所有 Trigger 的 FAILURE、TIMEOUT、CANCELLED，避免成功 PR 洗版。
 
 預期結果：PR 阻擋、部署失敗和部署成功都會在 Slack 出現狀態、Trigger、Build
 ID 與 Cloud Build Log 連結；Webhook 值只存在 Secret Manager。
@@ -237,4 +237,3 @@ ID 與 Cloud Build Log 連結；Webhook 值只存在 Secret Manager。
 - [ ] 失敗不切流量，成功才 `--to-latest`。
 - [ ] Slack 收到 build 終態（若已安裝 notifier）。
 - [ ] 每個 Runtime SA 只能讀自己的 secrets。
-
