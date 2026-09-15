@@ -32,6 +32,18 @@ AI 審查與 Cloud Run 部署區域分開設定。目前 onboarding 預設使用
 `asia-east1`。模型生命週期變更時，可用 `AI_MODEL` 與
 `AI_LOCATION` 環境變數更新 Trigger substitution，不需改審查邏輯。
 
+## 當前治理模式
+
+目前採用 **核心開發模式（Phase 1）**：repo 只開放給受信任的核心
+開發者，不啟用 Protected Branch、Required Review 或 Code Owners 強制
+核准。PR Trigger 仍提供 Gitleaks + Vertex AI 掃描回饋；合併或直接
+push `main` 後，deploy Trigger 會強制重跑兩層掃描，未通過就不建置、
+不部署。
+
+`CODEOWNERS` 與完整審核步驟保留為 **協作者治理模式（Phase 2）**
+藍圖。要開放 repo 給非核心成員前，必須先依
+[system spec](docs/system-spec.md#附錄-c分階段治理策略) 啟用 GitHub 強制治理。
+
 ## 安全界線
 
 本 repo 內的腳本會建立或修改真實 GCP 資源，但本次產製過程沒有執行它們。
@@ -40,8 +52,10 @@ AI 審查與 Cloud Run 部署區域分開設定。目前 onboarding 預設使用
 Secret Manager、Trigger、Cloud Run 或 IAM 指令；不要自動建立 GitHub repo、push、
 PR 或分支保護；不要讀取或輸出真實密鑰。
 
-PR Trigger 使用內嵌 build config，並從受保護的 `main` 載入掃描器。這避免
-協作者在 PR 內修改 gate 後，讓未經信任的掃描腳本以 Cloud Build 身份執行。
+PR Trigger 使用內嵌 build config，並從 `main` 載入掃描器。這避免
+PR branch 在同一次變更內替換 gate；但 Phase 1 的 `main` 本身並未受
+GitHub 強制保護，所以修改部署或掃描邏輯時必須在 PR 留下紀錄；若已有
+其他核心成員，再同步知會對方。
 因 Trigger 預設只 checkout 單一 commit，每個 repo 需配置一把唯讀 GitHub
 Deploy Key，用來取得 base branch 與完整 diff；私鑰只存在 Secret Manager，
 並只開放給該 Trigger 的 Build Service Account。
