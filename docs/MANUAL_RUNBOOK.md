@@ -241,7 +241,7 @@ git push -u origin test/security-gate
 2. 到 **Cloud Build → History**，確認
    `cicd-pilot-service-deploy` 開始執行。
 3. 確認順序為 Gitleaks → Vertex AI → Docker build → push →
-   deploy candidate（0%）→ `/healthz` → promote traffic。
+   deploy candidate（0%）→ `/health` → promote traffic。
    首次建立 Cloud Run service 時不支援 0% traffic，因此第一次是 bootstrap
    例外；從第二次部署開始才會以 0% candidate 驗證後切換。
 4. 到 **Artifact Registry → cicd-services**，確認 image tag 是該 commit 的
@@ -249,7 +249,7 @@ git push -u origin test/security-gate
 5. 到 **Cloud Run → cicd-pilot-service → Revisions**，確認 candidate 通過後
    latest revision 收到 100% 流量。
 6. 開啟 Cloud Run URL：`/` 應回傳
-   `cicd-pilot-service is running`，`/healthz` 應回傳 HTTP 200 與 `ok`。
+   `cicd-pilot-service is running`，`/health` 應回傳 HTTP 200 與 `ok`。
 
 預期結果：只有健康檢查成功後才切換流量。若檢查失敗，build 失敗且舊 revision
 仍持有正式流量。
@@ -309,7 +309,7 @@ ID 與 Cloud Build Log 連結；Webhook 值只存在 Secret Manager。
 5. 執行一次部署。`--no-allow-unauthenticated` 會移除公開呼叫，health check
    會改用 Cloud Build 身份的 ID Token。
 6. 用未驗證 curl 呼叫正式 URL，預期 HTTP 403；由獲授權身份攜帶 ID Token
-   呼叫 `/healthz`，預期 HTTP 200。
+   呼叫 `/health`，預期 HTTP 200。
 
 預期結果：兩個 Trigger 使用 `github` connection；Cloud Run 不再允許
 `allUsers` 呼叫；private health check 與部署仍成功。

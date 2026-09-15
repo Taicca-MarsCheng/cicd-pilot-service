@@ -149,7 +149,7 @@ steps:
   # 4. 自動健康檢查
   - id: health-check
     name: gcr.io/cloud-builders/curl
-    args: ['-f', 'https://candidate---${_SERVICE_NAME}-xxxxx.${_REGION}.run.app/healthz']
+    args: ['-f', 'https://candidate---${_SERVICE_NAME}-xxxxx.${_REGION}.run.app/health']
     # 失敗 → exit 非 0 → 後續步驟不執行，流量保留在舊版本，等同自動回滾
 
   # 5. 健康檢查通過才切流量

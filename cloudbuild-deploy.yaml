@@ -70,18 +70,19 @@ steps:
     args:
       - -ceu
       - |
-        candidate_url="$$(gcloud run services describe '${_SERVICE_NAME}' \
+        service_json="$$(gcloud run services describe '${_SERVICE_NAME}' \
           --project='${PROJECT_ID}' \
           --region='${_REGION}' \
-          --format="value(status.traffic[?tag='candidate'].url)")"
-        if [[ -z "$${candidate_url}" ]]; then
+          --format=json)"
+        if ! candidate_url="$$(printf '%s' "$${service_json}" | \
+          python3 /workspace/scripts/deploy/select_traffic_url.py candidate)"; then
           echo 'candidate tag URL was not reported by Cloud Run' >&2
           exit 1
         fi
         if [[ '${_PUBLIC_ACCESS}' == 'true' ]]; then
           curl --fail --silent --show-error \
             --retry 8 --retry-all-errors --retry-delay 5 \
-            "$${candidate_url}/healthz"
+            "$${candidate_url}/health"
         else
           service_url="$$(gcloud run services describe '${_SERVICE_NAME}' \
             --project='${PROJECT_ID}' \
@@ -91,7 +92,7 @@ steps:
           curl --fail --silent --show-error \
             --retry 8 --retry-all-errors --retry-delay 5 \
             --header="Authorization: Bearer $${id_token}" \
-            "$${candidate_url}/healthz"
+            "$${candidate_url}/health"
         fi
 
   # Specification 3.2 step 5: promote only after the health check succeeds.

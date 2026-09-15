@@ -10,12 +10,11 @@ def create_app() -> Flask:
     def index() -> Response:
         return Response("cicd-pilot-service is running\n", mimetype="text/plain")
 
-    @app.get("/healthz")
-    def healthz() -> Response:
+    @app.get("/health")
+    def health() -> Response:
         return Response("ok\n", status=200, mimetype="text/plain")
 
     return app
 
 
 app = create_app()
-
