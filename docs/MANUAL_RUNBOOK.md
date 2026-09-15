@@ -242,6 +242,8 @@ git push -u origin test/security-gate
    `cicd-pilot-service-deploy` 開始執行。
 3. 確認順序為 Gitleaks → Vertex AI → Docker build → push →
    deploy candidate（0%）→ `/healthz` → promote traffic。
+   首次建立 Cloud Run service 時不支援 0% traffic，因此第一次是 bootstrap
+   例外；從第二次部署開始才會以 0% candidate 驗證後切換。
 4. 到 **Artifact Registry → cicd-services**，確認 image tag 是該 commit 的
    `SHORT_SHA`。
 5. 到 **Cloud Run → cicd-pilot-service → Revisions**，確認 candidate 通過後
