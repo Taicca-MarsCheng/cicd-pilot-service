@@ -48,26 +48,20 @@ steps:
       - push
       - ${_IMAGE_URI}
 
-  # Specification 3.2 step 3: candidate receives no production traffic.
+  # Specification 3.2 step 3: existing services receive a 0%-traffic candidate.
+  # Cloud Run's first revision is the bootstrap exception because --no-traffic
+  # is unsupported while creating a service.
   - id: deploy-candidate
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: bash
     args:
-      - -ceu
-      - |
-        access_flag='--no-allow-unauthenticated'
-        if [[ '${_PUBLIC_ACCESS}' == 'true' ]]; then
-          access_flag='--allow-unauthenticated'
-        fi
-        gcloud run deploy '${_SERVICE_NAME}' \
-          --project='${PROJECT_ID}' \
-          --region='${_REGION}' \
-          --image='${_IMAGE_URI}' \
-          --service-account='${_RUNTIME_SA}' \
-          --no-traffic \
-          --tag=candidate \
-          "$${access_flag}" \
-          --quiet
+      - /workspace/scripts/deploy/deploy_candidate.sh
+      - ${PROJECT_ID}
+      - ${_REGION}
+      - ${_IMAGE_URI}
+      - ${_RUNTIME_SA}
+      - ${_SERVICE_NAME}
+      - ${_PUBLIC_ACCESS}
 
   # Specification 3.2 step 4: use the URL reported by Cloud Run, never guess it.
   - id: health-check

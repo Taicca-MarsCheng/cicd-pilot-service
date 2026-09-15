@@ -132,7 +132,7 @@ steps:
     name: gcr.io/cloud-builders/docker
     args: ['push', '${_IMAGE}']
 
-  # 3. 金絲雀部署：先 0% 流量
+  # 3. 金絲雀部署：既有服務先 0% 流量
   - id: deploy-candidate
     name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
@@ -142,7 +142,7 @@ steps:
       - ${_SERVICE_NAME}
       - --image=${_IMAGE}
       - --service-account=${_RUNTIME_SA}
-      - --no-traffic
+      - --no-traffic  # 首次建立服務時略過；Cloud Run 不支援該組合
       - --tag=candidate
       - --region=${_REGION}
 
@@ -163,7 +163,12 @@ steps:
     ...
 ```
 
-**自動回滾邏輯（決策 #4）**：新版本一律先以 `--no-traffic` 部署成獨立可存取的 `candidate` 修訂版本，通過健康檢查後才切換 100% 流量。因此「回滾」實際上是「從未真正上線」，比事後回滾更安全——正式流量永遠只會導向已驗證過的版本。
+**自動回滾邏輯（決策 #4）**：服務建立後的新版本一律先以
+`--no-traffic` 部署成獨立可存取的 `candidate` 修訂版本，通過健康檢查後
+才切換 100% 流量。因此「回滾」實際上是「從未真正上線」。Cloud Run
+不允許建立第一個 revision 時使用 `--no-traffic`，所以首次部署是明確的
+bootstrap 例外：revision ready 後立即執行同一個健康檢查；從第二次部署開始
+完整套用 0% candidate 保護。
 
 ### 3.3 誤判處理流程（決策 #3）
 
