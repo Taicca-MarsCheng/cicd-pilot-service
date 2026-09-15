@@ -42,7 +42,7 @@ steps:
           --requirement /workspace/.trusted-security/scripts/security-gate/requirements.txt
         python /workspace/.trusted-security/scripts/security-gate/run_vertex_review.py \
           --project '${PROJECT_ID}' \
-          --location '${_REGION}' \
+          --location '${_AI_LOCATION}' \
           --model '${_AI_MODEL}' \
           --repo '${REPO_NAME}' \
           --pr-number '${_PR_NUMBER}' \
@@ -55,8 +55,9 @@ substitutions:
   _SERVICE_NAME: cicd-pilot-service
   _REGION: asia-east1
   _RUNTIME_SA: sa-cicd-pilot-service@taicca-geminiapi.iam.gserviceaccount.com
-  # Confirm this alias/model ID in Vertex AI immediately before onboarding.
-  _AI_MODEL: gemini-flash-latest
+  # AI inference is independent from the asia-east1 deployment location.
+  _AI_MODEL: gemini-3.1-flash-lite
+  _AI_LOCATION: global
 
 options:
   dynamicSubstitutions: true

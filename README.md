@@ -24,9 +24,10 @@ Registry、零流量 candidate 與通過健康檢查後的流量切換。
 | PR Medium/Low 結果 | GitHub Check 與 Cloud Build Log | 不使用額外 GitHub Token |
 | 通知 | Cloud Build Slack Notifier 範本 | 由管理員一次性安裝 |
 
-`_AI_MODEL` 沒有在程式碼中鎖定版本；預設佔位值為
-`gemini-flash-latest`。執行 onboarding 前，務必在 Vertex AI 控制台確認它是
-目前實際可用的輕量 Gemini Flash model ID，必要時以 `AI_MODEL` 環境變數覆寫。
+AI 審查與 Cloud Run 部署區域分開設定。目前 onboarding 預設使用
+`gemini-3.1-flash-lite` 與 `global` 端點，Cloud Run 仍部署在
+`asia-east1`。模型生命週期變更時，可用 `AI_MODEL` 與
+`AI_LOCATION` 環境變數更新 Trigger substitution，不需改審查邏輯。
 
 ## 安全界線
 

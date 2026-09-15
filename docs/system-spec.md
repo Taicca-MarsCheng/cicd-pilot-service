@@ -187,11 +187,12 @@ steps:
 
 ### 4.1 模型指定（決策 #5）
 
-規格層級**不鎖死模型版本號**，一律指定為「GCP Vertex AI 現行最新輕量快速 Gemini Flash 模型」。實際 model id 寫在 `cloudbuild.yaml` 的 substitution 變數 `_AI_MODEL` 中，onboarding 或例行維護時可直接更新此變數，不需改動規格文件或程式邏輯。
+規格層級**不鎖死模型版本號**，一律指定為「GCP Vertex AI 現行最新輕量快速 Gemini Flash 模型」。實際 model id 與 AI 端點分別寫在 `cloudbuild.yaml` 的 substitution 變數 `_AI_MODEL` 與 `_AI_LOCATION` 中，onboarding 或例行維護時可直接更新，不需改動審查邏輯。AI 端點與 Cloud Run 部署區域互相獨立。
 
 ```yaml
 substitutions:
-  _AI_MODEL: 'gemini-flash-latest'   # 建置時需替換為當下 Vertex AI 控制台實際可用的最新輕量 Flash 版本 ID
+  _AI_MODEL: 'gemini-3.1-flash-lite' # 試點當下使用值，必須隨模型生命週期更新
+  _AI_LOCATION: 'global'             # 依模型可用區域設定
 ```
 
 ### 4.2 輸入格式
@@ -332,7 +333,7 @@ gcloud builds triggers create github \
   --repo-name="${REPO_NAME}" --repo-owner="${GITHUB_ORG}" \
   --branch-pattern="^main$" \
   --build-config="cloudbuild-deploy.yaml" \
-  --substitutions="_RUNTIME_SA=${SA_EMAIL},_SERVICE_NAME=${REPO_NAME},_REGION=${REGION}"
+  --substitutions="_RUNTIME_SA=${SA_EMAIL},_SERVICE_NAME=${REPO_NAME},_REGION=${REGION},_AI_MODEL=${AI_MODEL},_AI_LOCATION=${AI_LOCATION}"
 
 # 4. 授予 Cloud Build SA 使用該 Runtime SA 的權限（限定範圍，非專案層級）
 gcloud iam service-accounts add-iam-policy-binding "${SA_EMAIL}" \

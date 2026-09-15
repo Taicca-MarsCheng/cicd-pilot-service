@@ -9,9 +9,9 @@ substitution。
 
 1. 確認本機檔案已完成 review，特別是兩份 `cloudbuild-*.yaml`、
    `CODEOWNERS`、`.security/` 和 `scripts/security-gate/`。
-2. 到 Vertex AI Model Garden 確認目前在 `asia-east1` 可用的輕量 Gemini
-   Flash model ID。若 `gemini-flash-latest` 不可用，記下實際 ID，執行
-   onboarding 時設定 `AI_MODEL`。
+2. AI 審查預設使用 `gemini-3.1-flash-lite` 與 `global` 端點；
+   這與 Cloud Run 的 `asia-east1` 部署區域互相獨立。上線前仍應在
+   Vertex AI Model Garden 確認模型狀態。
 3. 確認管理員有 GitHub repo admin、GCP Project IAM Admin、Cloud Build
    Editor、Service Account Admin、Artifact Registry Admin 等所需權限。
 4. 在 GCP Activity 頁開啟即時活動記錄，逐項核對腳本建立的資源。
@@ -135,16 +135,17 @@ gcloud projects remove-iam-policy-binding taicca-geminiapi \
 
 ## 4. 執行 onboarding
 
-先 review `docs/onboard-new-repo.sh`。使用預設 model 時執行：
+先 review `docs/onboard-new-repo.sh`。預設使用
+`gemini-3.1-flash-lite` / `global`，執行：
 
 ```bash
 ./docs/onboard-new-repo.sh cicd-pilot-service asia-east1
 ```
 
-若控制台顯示不同的 Flash model ID：
+若要更換模型或 AI 端點：
 
 ```bash
-AI_MODEL='控制台顯示的-model-id' \
+AI_MODEL='控制台顯示的-model-id' AI_LOCATION='global' \
   ./docs/onboard-new-repo.sh cicd-pilot-service asia-east1
 ```
 

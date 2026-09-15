@@ -22,7 +22,7 @@ steps:
           --requirement scripts/security-gate/requirements.txt
         python scripts/security-gate/run_vertex_review.py \
           --project '${PROJECT_ID}' \
-          --location '${_REGION}' \
+          --location '${_AI_LOCATION}' \
           --model '${_AI_MODEL}' \
           --repo '${REPO_NAME}' \
           --diff-file /workspace/.security-diff.patch \
@@ -117,7 +117,8 @@ substitutions:
   _SERVICE_NAME: cicd-pilot-service
   _REGION: asia-east1
   _RUNTIME_SA: sa-cicd-pilot-service@taicca-geminiapi.iam.gserviceaccount.com
-  _AI_MODEL: gemini-flash-latest
+  _AI_MODEL: gemini-3.1-flash-lite
+  _AI_LOCATION: global
   _AR_REPOSITORY: cicd-services
   _PUBLIC_ACCESS: 'true'
   _IMAGE_URI: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/${_SERVICE_NAME}:${SHORT_SHA}
@@ -127,4 +128,3 @@ options:
   logging: CLOUD_LOGGING_ONLY
 
 timeout: 1200s
-

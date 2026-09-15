@@ -87,6 +87,18 @@ def validate_result(value: Any) -> dict[str, Any]:
     return value
 
 
+def build_vertex_endpoint(project: str, location: str, model: str) -> str:
+    api_host = (
+        "aiplatform.googleapis.com"
+        if location == "global"
+        else f"{location}-aiplatform.googleapis.com"
+    )
+    return (
+        f"https://{api_host}/v1/projects/{project}"
+        f"/locations/{location}/publishers/google/models/{model}:generateContent"
+    )
+
+
 def call_vertex(
     project: str, location: str, model: str, system_prompt: str, request: dict[str, Any]
 ) -> dict[str, Any]:
@@ -97,10 +109,7 @@ def call_vertex(
         scopes=["https://www.googleapis.com/auth/cloud-platform"]
     )
     session = AuthorizedSession(credentials)
-    endpoint = (
-        f"https://{location}-aiplatform.googleapis.com/v1/projects/{project}"
-        f"/locations/{location}/publishers/google/models/{model}:generateContent"
-    )
+    endpoint = build_vertex_endpoint(project, location, model)
     payload = {
         "systemInstruction": {"parts": [{"text": system_prompt}]},
         "contents": [
@@ -196,4 +205,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

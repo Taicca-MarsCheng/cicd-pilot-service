@@ -6,7 +6,8 @@ set -euo pipefail
 readonly PROJECT_ID="${PROJECT_ID:-taicca-geminiapi}"
 readonly GITHUB_CONNECTION="${GITHUB_CONNECTION:-github-taicca-marscheng}"
 readonly ARTIFACT_REPOSITORY="${ARTIFACT_REPOSITORY:-cicd-services}"
-readonly AI_MODEL="${AI_MODEL:-gemini-flash-latest}"
+readonly AI_MODEL="${AI_MODEL:-gemini-3.1-flash-lite}"
+readonly AI_LOCATION="${AI_LOCATION:-global}"
 readonly PUBLIC_ACCESS="${PUBLIC_ACCESS:-true}"
 
 die() {
@@ -16,8 +17,8 @@ die() {
 
 usage() {
   echo "Usage: $0 <repo-name> [region]" >&2
-  echo "Optional env: PROJECT_ID GITHUB_CONNECTION ARTIFACT_REPOSITORY AI_MODEL" >&2
-  echo "              PUBLIC_ACCESS BUILD_SA_EMAIL ASSUME_YES" >&2
+  echo "Optional env: PROJECT_ID GITHUB_CONNECTION ARTIFACT_REPOSITORY" >&2
+  echo "              AI_MODEL AI_LOCATION PUBLIC_ACCESS BUILD_SA_EMAIL ASSUME_YES" >&2
   exit 64
 }
 
@@ -35,6 +36,8 @@ readonly REGION="${2:-asia-east1}"
 [[ "${ARTIFACT_REPOSITORY}" =~ ^[a-z][a-z0-9._-]{1,61}[a-z0-9]$ ]] \
   || die "invalid Artifact Registry repository name"
 [[ "${AI_MODEL}" =~ ^[A-Za-z0-9._-]+$ ]] || die "invalid Vertex AI model ID"
+[[ "${AI_LOCATION}" =~ ^(global|us|eu|[a-z]+-[a-z]+[0-9]+)$ ]] \
+  || die "invalid Vertex AI location"
 
 for command_name in gcloud git; do
   command -v "${command_name}" >/dev/null 2>&1 \
@@ -98,6 +101,7 @@ echo "  runtime identity:    ${RUNTIME_SA_EMAIL}"
 echo "  artifact repository: ${ARTIFACT_REPOSITORY} (${REGION})"
 echo "  public access:       ${PUBLIC_ACCESS}"
 echo "  AI model:            ${AI_MODEL}"
+echo "  AI location:         ${AI_LOCATION}"
 
 if [[ "${ASSUME_YES:-false}" != "true" ]]; then
   read -r -p "Type ${REPO_NAME} to apply these GCP changes: " confirmation
@@ -145,7 +149,7 @@ gcloud iam service-accounts add-iam-policy-binding "${RUNTIME_SA_EMAIL}" \
   --condition=None >/dev/null
 echo "Allowed build SA to use only this runtime service account"
 
-common_substitutions="_SERVICE_NAME=${REPO_NAME},_REGION=${REGION},_RUNTIME_SA=${RUNTIME_SA_EMAIL},_AI_MODEL=${AI_MODEL}"
+common_substitutions="_SERVICE_NAME=${REPO_NAME},_REGION=${REGION},_RUNTIME_SA=${RUNTIME_SA_EMAIL},_AI_MODEL=${AI_MODEL},_AI_LOCATION=${AI_LOCATION}"
 
 # Inline config plus protected-main bootstrap prevents a PR from replacing its gate.
 gcloud builds triggers create github \
