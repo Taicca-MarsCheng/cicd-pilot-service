@@ -4,6 +4,8 @@
 repo。服務本身只有 `/` 與 `/healthz`；重點是驗證 PR gate、Artifact
 Registry、零流量 candidate 與通過健康檢查後的流量切換。
 
+本段文字用於第一次試點 PR，驗證 Gitleaks 與 Vertex AI security gate。
+
 ## 文件
 
 - [系統架構規格](docs/system-spec.md)
