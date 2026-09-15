@@ -6,7 +6,8 @@ steps:
     entrypoint: /bin/sh
     env:
       - REPO_ROOT=/workspace
-      - SECURITY_DIFF_RANGE=HEAD^..HEAD
+      # Cloud Build may provide a single-commit checkout. In that case the
+      # gate safely scans the full repository snapshot from Git's empty tree.
       - DIFF_OUTPUT=/workspace/.security-diff.patch
       - CHANGED_FILES_OUTPUT=/workspace/.security-changed-files.txt
     args:
