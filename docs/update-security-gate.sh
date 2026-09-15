@@ -52,8 +52,12 @@ gcloud secrets add-iam-policy-binding "${GITHUB_DEPLOY_KEY_SECRET}" \
 
 substitutions="_SERVICE_NAME=${REPO_NAME},_REGION=${REGION},_RUNTIME_SA=${RUNTIME_SA_EMAIL},_AI_MODEL=${AI_MODEL},_AI_LOCATION=${AI_LOCATION},_GITHUB_DEPLOY_KEY_SECRET=${GITHUB_DEPLOY_KEY_SECRET}"
 gcloud builds triggers update github "${TRIGGER_NAME}" \
-  --inline-config=cloudbuild-pr-check.yaml \
   --update-substitutions="${substitutions}" \
+  --project="${PROJECT_ID}" \
+  --region="${REGION}"
+
+gcloud builds triggers update github "${TRIGGER_NAME}" \
+  --inline-config=cloudbuild-pr-check.yaml \
   --project="${PROJECT_ID}" \
   --region="${REGION}"
 
