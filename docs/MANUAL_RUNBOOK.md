@@ -5,6 +5,11 @@
 Webhook、API Key 或任何密鑰貼進 terminal history、repo、PR 或 Cloud Build
 substitution。
 
+**當前治理模式：Phase 1 核心開發模式。** 請保留 PR 與雙層資安
+檢查，但不建立 `main` 分支保護、Required Review 或 Code Owners
+強制核准。未來將 repo 開放給非核心成員時，再依第 5.1 節啟用
+**協作者治理模式（Phase 2）**。
+
 ## 0. 執行前確認
 
 1. 確認本機檔案已完成 review，特別是兩份 `cloudbuild-*.yaml`、
@@ -203,7 +208,7 @@ AI_MODEL='控制台顯示的-model-id' AI_LOCATION='global' \
 
 腳本會更新受保護的 inline config 與 secret 存取權，不會重建 Trigger。
 
-## 5. 第一次測試 PR 與必要 Status Check
+## 5. 第一次測試 PR 與 Status Check
 
 先用一個無風險改動觸發 PR：
 
@@ -220,24 +225,37 @@ git push -u origin test/security-gate
 `gitleaks-scan`、`vertex-ai-review`。GitHub 顯示名稱可能帶 App 前綴，請複製
 畫面上的完整名稱，不要憑空輸入。
 
-接著進入 repo **Settings → Branches → Add branch protection rule**：
+在當前 Phase 1：
 
-- Branch name pattern：`main`
-- 勾選 **Require a pull request before merging**
-- Required approvals：至少 `1`
-- 勾選 **Require review from Code Owners**
-- 勾選 **Require status checks to pass before merging**
-- 搜尋並選擇剛才 PR 實際出現、對應
-  `cicd-pilot-service-security-gate` 的完整 check 名稱
-- 建議勾選 **Require branches to be up to date before merging**
-- 不啟用管理員強制套用/不要勾選 **Include administrators**，保留緊急例外；
-  正常流程仍應 Retry，而不是繞過
+- 不新增 Branch protection rule；若試點測試時已建立，將它刪除。
+- 不將 `security-gate` 設成 required check。
+- `CODEOWNERS` 檔案保留為 Phase 2 治理藍圖，但不開啟
+  **Require review from Code Owners**。
+- 核心開發者仍應開 PR，等到 `security-gate` 綠燈才合併。
+- 修改 `cloudbuild*.yaml`、`.security/`、`scripts/security-gate/` 或
+  `CODEOWNERS` 時，必須在 PR 說明原因與影響；若已有其他核心成員，
+  再同步知會對方。
 
-預期結果：gate 未成功或 Code Owner 未核准時，協作者無法 Merge。
+預期結果：PR check 照常回報，但 GitHub 不強制鎖住 Merge；合併後的
+deploy Trigger 會重跑雙層掃描，未通過就停止建置與部署。
+
+### 5.1 切換協作者治理模式（Phase 2）
+
+如果要賦予非核心成員 repo 權限、團隊已難以靠口頭約定維持，或曾
+發生掃描設定被誤改/繞過，請先選用支援私有 repo 治理功能的 GitHub
+方案，然後進入 **Settings → Branches** 或 **Rulesets**：
+
+- 保護 `main`，禁止一般協作者直接 push。
+- 啟用 **Require a pull request before merging** 與至少 1 人核准。
+- 啟用 **Require review from Code Owners**。
+- 啟用 **Require status checks to pass before merging**，選擇 PR 實際
+  出現、對應 `cicd-pilot-service-security-gate` 的完整 check 名稱。
+- 啟用 **Require branches to be up to date before merging**。
+- 依當時風險重新決定管理員是否可繞過，不沿用 Phase 1 假設。
 
 ## 6. Merge、部署與健康檢查
 
-1. 管理員核准測試 PR 後 Merge。
+1. Phase 1 由核心開發者確認 check 綠燈後 Merge；Phase 2 另需完成必要審核。
 2. 到 **Cloud Build → History**，確認
    `cicd-pilot-service-deploy` 開始執行。
 3. 確認順序為 Gitleaks → Vertex AI → Docker build → push →
@@ -257,7 +275,8 @@ git push -u origin test/security-gate
 ## 7. 阻擋與誤判驗證
 
 在獨立測試 PR 使用明顯的假測試模式驗證 Gitleaks；切勿提交真實密鑰。預期
-Gitleaks 輸出經過 redaction、check failure、Merge 被鎖住。刪除測試字串後再
+Gitleaks 輸出經過 redaction 且 check failure。Phase 1 不會鎖住 Merge，但核心開發者
+必須先刪除測試字串再
 push，預期新的 check 通過。
 
 以只會產生 LOW 建議的安全 diff 測試 Vertex AI：預期 check 通過，finding
@@ -317,8 +336,10 @@ ID 與 Cloud Build Log 連結；Webhook 值只存在 Secret Manager。
 ## 11. 完整驗收清單
 
 - [ ] 協作者無 GCP 帳號、key 或 GitHub GCP secret。
-- [ ] PR 無法修改實際執行的 inline gate 或 protected-main scanner。
-- [ ] 未通過 gate 與 Code Owner review 時不可 Merge。
+- [ ] PR 無法在同一次變更中替換實際執行的 inline gate 或 `main` baseline scanner。
+- [ ] Phase 1 的 PR gate 正常回報，團隊約定不合併紅燈 PR。
+- [ ] Phase 1 沒有 Branch protection、Required Review 或 Code Owner 強制核准。
+- [ ] Phase 2 治理藍圖、觸發條件與啟用步驟仍保留在文件中。
 - [ ] Gitleaks 任一命中都阻擋且不顯示完整密鑰。
 - [ ] Vertex AI 僅 HIGH/CRITICAL 阻擋，錯誤或格式異常時 fail closed。
 - [ ] Main 會重跑兩層 gate。

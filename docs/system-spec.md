@@ -1,16 +1,22 @@
 # 系統架構與技術規格文件
 ## GitHub 協作者自動化資安稽查與 GCP 部署系統
 
-版本：v1.0
-狀態：已與需求提出者確認 13 項架構決策，待實作
+版本：v1.1
+狀態：試點已建置並完成部署、資安阻擋與回滾驗證
+
+> **2026-09-15 治理決策**：當前只有核心開發人員使用 repo，採用
+> **核心開發模式（Phase 1）**，不啟用 Protected Branch、Required
+> Review 或 Code Owners 強制核准。`CODEOWNERS` 與審核規格作為治理藍圖
+> 保留；未來開放給非核心協作者時切換為 **協作者治理模式
+> （Phase 2）**。兩個階段都保留 Gitleaks + Vertex AI 雙層掃描；詳見附錄 C。
 
 ---
 
 ## 0. 文件範圍與前提
 
-本系統解決的核心問題：外部協作者在 GitHub 上開發服務（如 Slack bot），**完全不持有任何 GCP 帳號、憑證或 Service Account Key**。GCP 管理員需要一套機制，讓協作者的程式碼在通過雙層資安稽查後，自動建置並部署到 GCP，管理員只需要做「PR 審查」與「新專案 onboarding」兩件事，不需要手動操作部署。
+本系統解決的核心問題：GitHub 開發人員在**不持有任何 GCP 帳號、憑證或 Service Account Key**的情況下，程式碼仍能經過雙層資安稽查後自動部署到 GCP。Phase 1 由核心開發團隊自律；Phase 2 才由 GitHub 強制 PR 審核與管理者核准。
 
-**架構原則**：一個協作者服務 = 一個獨立 GitHub repo = 一組專屬 GCP 身份（Cloud Build Trigger + Runtime Service Account）。所有 repo 共用同一份範本（分支保護規則、CODEOWNERS、cloudbuild.yaml 骨架），新專案上線時用 onboarding 腳本套用範本，而非每次手動設定。
+**架構原則**：一個協作者服務 = 一個獨立 GitHub repo = 一組專屬 GCP 身份（Cloud Build Trigger + Runtime Service Account）。所有 repo 共用同一份部署範本與治理藍圖，新專案上線時用 onboarding 腳本套用 GCP 資源；GitHub 強制治理依當前階段啟用。
 
 ---
 
@@ -21,9 +27,9 @@
 | 元件 | 說明 |
 |---|---|
 | GitHub 協作者 | 在獨立分支開發，發 PR，無任何 GCP 存取權 |
-| GitHub repo（每服務一個） | main 分支受保護，套用共用範本 |
-| GCP 管理員 | 唯一有權 Merge PR、唯一有 GCP 存取權限的人 |
-| Cloud Build（PR 稽查 Trigger） | 監聽 PR 事件，只做「稽查」，不部署，結果回傳為 GitHub 必要狀態檢查 |
+| GitHub repo（每服務一個） | Phase 1 的 `main` 未強制保護；Phase 2 啟用分支保護與治理藍圖 |
+| GCP 管理員 | 唯一擁有 GCP 管理權限的人；Phase 2 另負責受保護檔案的核准 |
+| Cloud Build（PR 稽查 Trigger） | 監聽 PR 事件並回傳 GitHub Status Check；Phase 1 是開發回饋，Phase 2 是合併必要條件 |
 | Cloud Build（Main 部署 Trigger） | 監聽 push to main，做「稽查 + 建置 + 部署」 |
 | Gitleaks | 第一層：正則比對硬編碼密鑰 |
 | Vertex AI（Gemini，輕量 Flash 系列現行版本） | 第二層：針對 git diff 做語意資安審查 |
@@ -32,21 +38,21 @@
 | Secret Manager | 存放各服務的 runtime 憑證（如 Slack Token） |
 | Slack（通知頻道） | 接收稽查阻擋 / 部署成功 的主動通知 |
 
-> 設計取捨備忘：本系統**不設 staging 環境**，只有單一 prod 環境；部署安全性由「PR 稽查 gate + Cloud Run 0% 流量金絲雀部署 + 自動回滾」共同保障，而非用多環境隔離風險。
+> 設計取捨備忘：本系統**不設 staging 環境**，只有單一 prod 環境；兩階段都由部署關卡與 Cloud Run 0% 流量 candidate/自動回滾保障線上流量。Phase 2 再額外由 PR 必要檢查提前阻止不安全合併。
 
 ### 1.2 為什麼需要兩個 Cloud Build Trigger
 
 原始需求文件把「PR 稽查」跟「Merge 後部署」寫在同一段敘述裡，但這其實是兩個必須分開的流程，理由如下：
 
-- GitHub 分支保護要「PR 通過稽查才能被 Merge」，稽查結果必須在 **PR 開啟時、Merge 之前**就以 GitHub Status Check 形式出現，讓 Merge 按鈕本身被鎖住。
+- PR 稽查在 **PR 開啟時、Merge 之前**回報問題。Phase 1 由核心開發者自律等待；Phase 2 由 GitHub 將它設為合併必要檢查。
 - 部署行為則是「Merge 之後才發生」（決策 #9：Merge 到 main 立即部署）。
 
 因此需要：
 
-- **Trigger A：PR 稽查**（事件：`pull_request` 開啟/更新）→ 只跑 Gitleaks + Vertex AI 審查 → 結果寫回 GitHub Status Check（`security-gate`）→ 這個 check 被設為分支保護規則裡的必要檢查項目。
+- **Trigger A：PR 稽查**（事件：`pull_request` 開啟/更新）→ 只跑 Gitleaks + Vertex AI 審查 → 結果寫回 GitHub Status Check（`security-gate`）。Phase 1 保留檢查但不強制；Phase 2 將它設為必要檢查。
 - **Trigger B：Main 部署**（事件：`push` 到 `main`，即 Merge 完成後）→ 重跑一次稽查（防止 Merge Queue 造成的程式碼位移）→ 通過才建置、部署。
 
-### 1.3 文字化循序圖
+### 1.3 文字化循序圖（Phase 2 完整治理）
 
 ```
 協作者                GitHub PR         Trigger A(稽查)      GCP 管理員      Trigger B(部署)      Cloud Run    Slack
@@ -79,12 +85,13 @@
 
 ### 2.1 GitHub 層級權限
 
-| 角色 | Repo 權限 | 分支保護 | CODEOWNERS |
-|---|---|---|---|
-| 協作者 | Write（僅限非 main 分支 + PR） | 不能直接推到 main；不能繞過必要 Status Check | 非 owner，修改受保護檔案時 PR 會標記需要管理員審查 |
-| GCP 管理員 | Admin | 可 Merge；**允許繞過**必要 Status Check（決策 #6：不勾選 Include Administrators，保留緊急處理彈性，但正常流程一律走「手動 re-run」而非直接繞過） | 為 `cloudbuild.yaml`、`/security/*`、`CODEOWNERS` 本身的 Code Owner |
+| 角色 | Phase 1：核心開發模式 | Phase 2：協作者治理模式 |
+|---|---|---|
+| 核心開發者 | 可開 PR、合併或直接 push `main`；由團隊約定等待 PR 檢查 | 依職責授予 Write 或 Maintain，不得繞過必要檢查與審核 |
+| 非核心協作者 | 不開放 repo 權限 | 僅在非 `main` 分支與 PR 開發，不持有 GCP 權限 |
+| GCP 管理員 | 管理 GCP 與 onboarding，不必核准每個 PR | 是受保護部署檔案的 Code Owner；緊急繞過政策在啟用 Phase 2 時重新確認 |
 
-> 決策 #12 備忘：本系統**不**額外加 GitHub Rulesets 鎖死檔案路徑。CODEOWNERS + 必須審查已足夠，因為所有 Merge 本來就需要管理員核准。
+> Phase 1 的 `CODEOWNERS` 只是治理藍圖，不具強制力。Phase 2 才啟用 Code Owner 必要審查；是否再加 Rulesets 與緊急繞過規則，必須在當時依團隊與 GitHub 方案重新檢視。
 
 ### 2.2 GCP 服務身份權限
 
@@ -110,7 +117,7 @@
 | 4 | 將結果回寫為 GitHub Status Check `security-gate` | pending → success/failure |
 | 5 | 發送 Slack 通知（阻擋才發，避免每個 PR 更新都洗版；也可設定「阻擋與最終通過都發」，見 3.3） | — |
 
-此 Trigger **不執行**建置與部署，純稽查，執行速度快、成本低。
+此 Trigger **不執行**建置與部署，純稽查，執行速度快、成本低。Phase 1 的紅燈是明確的「不應合併」訊號，但 GitHub 不會強制鎖住 Merge。
 
 ### 3.2 Trigger B：Main 部署（`cloudbuild-deploy.yaml`）
 
@@ -273,16 +280,19 @@ Cloud Build 稽查腳本解析此 JSON：只要 `findings` 中存在任一 `seve
 
 ```
 repo-root/
-├── CODEOWNERS                      # 鎖定下列檔案需管理員審查（決策 #12：不額外加 Rulesets）
+├── CODEOWNERS                      # Phase 1 治理藍圖；Phase 2 啟用強制審查
 ├── cloudbuild-pr-check.yaml        # Trigger A：PR 稽查專用
 ├── cloudbuild-deploy.yaml          # Trigger B：main 部署專用
 ├── Dockerfile
 ├── src/                            # 協作者自由開發區域，不受 CODEOWNERS 限制
 └── .security/
-    └── vertex-ai-prompt.md         # Vertex AI 審查用的 system prompt 範本（受 CODEOWNERS 保護）
+    └── vertex-ai-prompt.md         # Vertex AI 審查用的 system prompt 範本
 ```
 
 `CODEOWNERS` 內容範例：
+
+> 檔案可在 Phase 1 先保留，但只有 Phase 2 開啟
+> **Require review from Code Owners** 後才是強制控制。
 
 ```
 /cloudbuild-pr-check.yaml   @gcp-admin
@@ -374,14 +384,14 @@ gcloud secrets add-iam-policy-binding "${SECRET_NAME}" \
 echo "完成。請告知協作者密鑰名稱：${SECRET_NAME}（不含真實值）"
 ```
 
-### 6.3 新協作者上線檢查清單
+### 6.3 新服務上線檢查清單
 
 - [ ] 協作者提出新 repo 需求，填寫「服務資源需求問卷」（需要哪些密鑰、是否存取其他 GCP 資源）
 - [ ] 管理員在 GitHub 建立 repo，套用範本（`CODEOWNERS`、`cloudbuild-*.yaml`）
-- [ ] 設定分支保護：required status check = `security-gate`，Code Owner review 必須，**不勾選 Include administrators**（決策 #6）
+- [ ] 標記當前治理模式；Phase 1 **不建立**分支保護，Phase 2 才將 `security-gate` 設為必要檢查並啟用 Code Owner review
 - [ ] 執行 `onboard-new-repo.sh`
 - [ ] 若需密鑰，走一次性連結交付流程 + 執行 `add-secret.sh`
-- [ ] 協作者發第一個測試 PR，驗證 `security-gate` 狀態檢查正確出現並可正確通過/阻斷
+- [ ] 發第一個測試 PR，驗證 `security-gate` 正確出現；Phase 1 為自律依據，Phase 2 為合併關卡
 - [ ] 確認 Merge 後 Trigger B 正確建置、部署，Slack 收到通知
 - [ ] 驗證 Cloud Run 服務只能被自己的 Runtime SA 存取到自己的密鑰（用另一個服務的身份嘗試讀取，應被拒絕）
 
@@ -389,7 +399,8 @@ echo "完成。請告知協作者密鑰名稱：${SECRET_NAME}（不含真實值
 
 | 驗證項目 | 對應決策 | 驗證方式 |
 |---|---|---|
-| 協作者無法繞過稽查直接 Merge | #6 | 用協作者帳號嘗試 Merge 未通過稽查的 PR，應被 GitHub 阻擋 |
+| Phase 1 主線掃描會阻止不安全部署 | #6, #12 | 將已知測試 fixture 送入 `main`，應在 Docker build 前失敗；線上舊 revision 不受影響 |
+| Phase 2 無法繞過 PR 稽查 | #6, #12 | 以非核心協作者帳號合併未通過稽查的 PR，應被 GitHub 阻擋 |
 | Gitleaks 誤判可恢復 | #3 | 故意讓 Gitleaks 誤判，確認管理員可在 Cloud Build 控制台 Retry |
 | Medium/Low 不阻斷 | #8 | 提交一個風格建議等級的 diff，確認 PR 通過但留言可見 |
 | 部署失敗不影響現有流量 | #4 | 故意讓 health check 失敗，確認 Cloud Run 正式流量仍在舊版本 |
@@ -397,7 +408,7 @@ echo "完成。請告知協作者密鑰名稱：${SECRET_NAME}（不含真實值
 
 ---
 
-## 附錄 A：Mermaid 版循序圖
+## 附錄 A：Mermaid 版循序圖（Phase 2）
 
 ```mermaid
 sequenceDiagram
@@ -448,5 +459,42 @@ sequenceDiagram
 | 9 | 部署時機 | Merge 到 main 立即部署 |
 | 10 | 密鑰管理 | 每服務專屬 SA + Secret Manager |
 | 11 | 密鑰交付 | v1 一次性連結工具 |
-| 12 | 設定檔保護 | CODEOWNERS + 必須審查 |
+| 12 | 設定檔保護 | Phase 1 保留藍圖但不強制；Phase 2 啟用 CODEOWNERS + 必要審查 |
 | 13 | Onboarding | gcloud CLI 腳本 |
+
+---
+
+## 附錄 C：分階段治理策略
+
+### Phase 1：核心開發模式（當前）
+
+| 項目 | 狀態 |
+|---|---|
+| Repo 成員 | 僅核心且已受信任的開發者 |
+| Protected Branch / Required Review | 不啟用 |
+| CODEOWNERS | 檔案保留為治理藍圖，不開啟強制核准 |
+| PR 資安檢查 | 正常執行，為合併前的開發回饋與團隊自律依據 |
+| 部署關卡 | **強制執行** Gitleaks + Vertex AI；失敗即停止建置與部署 |
+| 受信任檔案 | 修改 `cloudbuild*.yaml`、`.security/`、`scripts/security-gate/` 或 `CODEOWNERS` 時，必須在 PR 說明原因與影響；如有其他核心成員再同步知會 |
+
+Phase 1 的剩餘風險是：核心開發者可在同一個未受保護的 commit
+中同時弱化部署關卡與應用程式。這是當前信任邊界的明確取捨，不應將
+PR 綠燈解讀為 GitHub 已強制防止繞過。
+
+### 切換 Phase 2 的觸發條件
+
+任一項成立就應啟動治理升級：
+
+- 預計賦予非核心成員或外部協作者 repo 權限。
+- 團隊規模或並行變更量讓口頭約定不再可靠。
+- `cloudbuild*.yaml`、`.security/` 或掃描腳本曾被誤改、繞過或未經同儕知會就合併。
+
+### Phase 2：協作者治理模式（保留架構）
+
+1. 選用支援私有 repo 分支保護與 Code Owners 強制機制的 GitHub 方案。
+2. 在 `main` 啟用 Protected Branch 或對應 Ruleset。
+3. 啟用至少 1 人 Required Review 與 **Require review from Code Owners**。
+4. 確認 `CODEOWNERS` 仍涵蓋部署與掃描邏輯。
+5. 將 PR Trigger 產生的完整 `security-gate` check 名稱設為必要狀態檢查。
+6. 用非核心測試帳號驗證不能直接 push `main`、不能自行核准，且不能合併紅燈 PR。
+7. 再次決定管理員是否擁有緊急繞過權，並留下可稽核紀錄。

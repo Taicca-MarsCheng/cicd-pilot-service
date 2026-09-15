@@ -1,3 +1,5 @@
+# Phase 1 governance blueprint only; GitHub enforcement remains disabled.
+# Enable required Code Owner reviews when moving to governed Phase 2.
 /cloudbuild-pr-check.yaml   @Taicca-MarsCheng
 /cloudbuild-deploy.yaml     @Taicca-MarsCheng
 /.security/                 @Taicca-MarsCheng

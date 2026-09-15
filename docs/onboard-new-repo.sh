@@ -9,6 +9,7 @@ readonly ARTIFACT_REPOSITORY="${ARTIFACT_REPOSITORY:-cicd-services}"
 readonly AI_MODEL="${AI_MODEL:-gemini-3.1-flash-lite}"
 readonly AI_LOCATION="${AI_LOCATION:-global}"
 readonly PUBLIC_ACCESS="${PUBLIC_ACCESS:-true}"
+readonly GOVERNANCE_PHASE="${GOVERNANCE_PHASE:-core}"
 
 die() {
   echo "ERROR: $*" >&2
@@ -20,6 +21,7 @@ usage() {
   echo "Optional env: PROJECT_ID GITHUB_CONNECTION ARTIFACT_REPOSITORY" >&2
   echo "              AI_MODEL AI_LOCATION GITHUB_DEPLOY_KEY_SECRET" >&2
   echo "              PUBLIC_ACCESS BUILD_SA_EMAIL ASSUME_YES" >&2
+  echo "              GOVERNANCE_PHASE (core|governed)" >&2
   exit 64
 }
 
@@ -33,6 +35,8 @@ readonly GITHUB_DEPLOY_KEY_SECRET="${GITHUB_DEPLOY_KEY_SECRET:-${REPO_NAME}-gith
 [[ "${REGION}" =~ ^[a-z]+-[a-z]+[0-9]+$ ]] || die "invalid GCP region"
 [[ "${PUBLIC_ACCESS}" == "true" || "${PUBLIC_ACCESS}" == "false" ]] \
   || die "PUBLIC_ACCESS must be true or false"
+[[ "${GOVERNANCE_PHASE}" == "core" || "${GOVERNANCE_PHASE}" == "governed" ]] \
+  || die "GOVERNANCE_PHASE must be core or governed"
 [[ "${PROJECT_ID}" =~ ^[a-z][a-z0-9-]{4,28}[a-z0-9]$ ]] || die "invalid project ID"
 [[ "${GITHUB_CONNECTION}" =~ ^[A-Za-z0-9._-]+$ ]] || die "invalid connection name"
 [[ "${ARTIFACT_REPOSITORY}" =~ ^[a-z][a-z0-9._-]{1,61}[a-z0-9]$ ]] \
@@ -110,6 +114,7 @@ echo "  public access:       ${PUBLIC_ACCESS}"
 echo "  AI model:            ${AI_MODEL}"
 echo "  AI location:         ${AI_LOCATION}"
 echo "  GitHub deploy key:   ${GITHUB_DEPLOY_KEY_SECRET}"
+echo "  governance phase:    ${GOVERNANCE_PHASE}"
 
 if [[ "${ASSUME_YES:-false}" != "true" ]]; then
   read -r -p "Type ${REPO_NAME} to apply these GCP changes: " confirmation
@@ -166,7 +171,7 @@ echo "Allowed build SA to read only the repo-scoped GitHub deploy key"
 
 common_substitutions="_SERVICE_NAME=${REPO_NAME},_REGION=${REGION},_RUNTIME_SA=${RUNTIME_SA_EMAIL},_AI_MODEL=${AI_MODEL},_AI_LOCATION=${AI_LOCATION},_GITHUB_DEPLOY_KEY_SECRET=${GITHUB_DEPLOY_KEY_SECRET}"
 
-# Inline config plus protected-main bootstrap prevents a PR from replacing its gate.
+# Inline config plus the baseline from main prevents a PR from replacing its own gate.
 gcloud builds triggers create github \
   --name="${REPO_NAME}-security-gate" \
   --description="PR security-gate for ${REPO_NAME}" \
@@ -195,4 +200,10 @@ gcloud builds triggers create github \
 echo "Onboarding complete. Expected triggers:"
 echo "  ${REPO_NAME}-security-gate (pull requests to main)"
 echo "  ${REPO_NAME}-deploy (pushes to main)"
-echo "Next: open a test PR, then use its exact GitHub check name in branch protection."
+if [[ "${GOVERNANCE_PHASE}" == "core" ]]; then
+  echo "Next: open a test PR and confirm the check passes. Leave branch protection off in core mode."
+  echo "The main deploy trigger repeats both security scans and blocks an unsafe deployment."
+else
+  echo "Next: open a test PR, then use its exact GitHub check name in branch protection."
+  echo "Also require at least one review and review from Code Owners."
+fi
