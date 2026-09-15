@@ -4,11 +4,14 @@
 repo。服務本身只有 `/` 與 `/healthz`；重點是驗證 PR gate、Artifact
 Registry、零流量 candidate 與通過健康檢查後的流量切換。
 
+本段文字用於第一次試點 PR，驗證 Gitleaks 與 Vertex AI security gate。
+
 ## 文件
 
 - [系統架構規格](docs/system-spec.md)
 - [人工建置與驗證手冊](docs/MANUAL_RUNBOOK.md)
 - [新 repo onboarding 腳本](docs/onboard-new-repo.sh)
+- [PR gate 更新/修復腳本](docs/update-security-gate.sh)
 - [服務密鑰建立腳本](docs/add-secret.sh)
 
 ## 已確認的試點設定
@@ -39,17 +42,21 @@ PR 或分支保護；不要讀取或輸出真實密鑰。
 
 PR Trigger 使用內嵌 build config，並從受保護的 `main` 載入掃描器。這避免
 協作者在 PR 內修改 gate 後，讓未經信任的掃描腳本以 Cloud Build 身份執行。
+因 Trigger 預設只 checkout 單一 commit，每個 repo 需配置一把唯讀 GitHub
+Deploy Key，用來取得 base branch 與完整 diff；私鑰只存在 Secret Manager，
+並只開放給該 Trigger 的 Build Service Account。
 因此更新 `cloudbuild-pr-check.yaml` 後，也必須由管理員同步更新 Trigger 的
-inline config。
+inline config；可使用 `docs/update-security-gate.sh`。
 
 ## 本機靜態檢查
 
 本機不需要啟動服務或 Docker。可執行：
 
 ```bash
-bash -n docs/onboard-new-repo.sh docs/add-secret.sh
+bash -n docs/onboard-new-repo.sh docs/update-security-gate.sh docs/add-secret.sh
 sh -n scripts/security-gate/run_gitleaks.sh
 python3 -m py_compile app/main.py scripts/security-gate/run_vertex_review.py
+python3 -m unittest discover -s tests -v
 ```
 
 若環境已安裝 `shellcheck` 與 `yamllint`，另執行：

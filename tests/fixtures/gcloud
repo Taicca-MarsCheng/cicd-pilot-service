@@ -1,0 +1,37 @@
+#!/bin/sh
+set -eu
+
+case "$1 $2 $3" in
+  "builds get-default-service-account --project="*)
+    echo 'projects/test/serviceAccounts/623848927823-compute@developer.gserviceaccount.com'
+    ;;
+  "builds triggers describe")
+    echo 'test-trigger-id'
+    ;;
+  "secrets describe cicd-pilot-service-github-deploy-key")
+    ;;
+  "secrets add-iam-policy-binding cicd-pilot-service-github-deploy-key")
+    ;;
+  "builds triggers import")
+    source_file=''
+    for argument in "$@"; do
+      case "${argument}" in
+        --source=*) source_file=${argument#--source=} ;;
+      esac
+    done
+    [ -n "${source_file}" ]
+    ruby -e '
+      require "yaml"
+      trigger = YAML.load_file(ARGV.fetch(0))
+      abort "missing trigger id" unless trigger["id"] == "test-trigger-id"
+      abort "missing repository event" unless trigger["repositoryEventConfig"]
+      abort "missing inline build" unless trigger["build"]
+      abort "missing secret substitution" unless trigger.fetch("substitutions").key?("_GITHUB_DEPLOY_KEY_SECRET")
+    ' "${source_file}"
+    echo 'Imported trigger.'
+    ;;
+  *)
+    echo "unexpected fake gcloud command: $*" >&2
+    exit 1
+    ;;
+esac

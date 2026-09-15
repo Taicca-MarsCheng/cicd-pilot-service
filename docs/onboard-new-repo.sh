@@ -18,13 +18,15 @@ die() {
 usage() {
   echo "Usage: $0 <repo-name> [region]" >&2
   echo "Optional env: PROJECT_ID GITHUB_CONNECTION ARTIFACT_REPOSITORY" >&2
-  echo "              AI_MODEL AI_LOCATION PUBLIC_ACCESS BUILD_SA_EMAIL ASSUME_YES" >&2
+  echo "              AI_MODEL AI_LOCATION GITHUB_DEPLOY_KEY_SECRET" >&2
+  echo "              PUBLIC_ACCESS BUILD_SA_EMAIL ASSUME_YES" >&2
   exit 64
 }
 
 [[ $# -ge 1 && $# -le 2 ]] || usage
 readonly REPO_NAME="$1"
 readonly REGION="${2:-asia-east1}"
+readonly GITHUB_DEPLOY_KEY_SECRET="${GITHUB_DEPLOY_KEY_SECRET:-${REPO_NAME}-github-deploy-key}"
 
 [[ "${REPO_NAME}" =~ ^[a-z][a-z0-9-]{1,48}[a-z0-9]$ ]] \
   || die "repo-name must be 3-50 lowercase letters, digits, or hyphens"
@@ -38,6 +40,8 @@ readonly REGION="${2:-asia-east1}"
 [[ "${AI_MODEL}" =~ ^[A-Za-z0-9._-]+$ ]] || die "invalid Vertex AI model ID"
 [[ "${AI_LOCATION}" =~ ^(global|us|eu|[a-z]+-[a-z]+[0-9]+)$ ]] \
   || die "invalid Vertex AI location"
+[[ "${GITHUB_DEPLOY_KEY_SECRET}" =~ ^[A-Za-z0-9_-]{1,255}$ ]] \
+  || die "invalid GitHub deploy-key secret name"
 
 for command_name in gcloud git; do
   command -v "${command_name}" >/dev/null 2>&1 \
@@ -85,6 +89,9 @@ gcloud builds repositories describe "${REPO_NAME}" \
 gcloud iam service-accounts describe "${BUILD_SA_EMAIL}" \
   --project="${PROJECT_ID}" >/dev/null \
   || die "build service account does not exist: ${BUILD_SA_EMAIL}"
+gcloud secrets describe "${GITHUB_DEPLOY_KEY_SECRET}" \
+  --project="${PROJECT_ID}" >/dev/null \
+  || die "GitHub deploy-key secret not found: ${GITHUB_DEPLOY_KEY_SECRET}; see MANUAL_RUNBOOK.md"
 
 for trigger_name in "${REPO_NAME}-security-gate" "${REPO_NAME}-deploy"; do
   if gcloud builds triggers describe "${trigger_name}" \
@@ -102,6 +109,7 @@ echo "  artifact repository: ${ARTIFACT_REPOSITORY} (${REGION})"
 echo "  public access:       ${PUBLIC_ACCESS}"
 echo "  AI model:            ${AI_MODEL}"
 echo "  AI location:         ${AI_LOCATION}"
+echo "  GitHub deploy key:   ${GITHUB_DEPLOY_KEY_SECRET}"
 
 if [[ "${ASSUME_YES:-false}" != "true" ]]; then
   read -r -p "Type ${REPO_NAME} to apply these GCP changes: " confirmation
@@ -149,7 +157,14 @@ gcloud iam service-accounts add-iam-policy-binding "${RUNTIME_SA_EMAIL}" \
   --condition=None >/dev/null
 echo "Allowed build SA to use only this runtime service account"
 
-common_substitutions="_SERVICE_NAME=${REPO_NAME},_REGION=${REGION},_RUNTIME_SA=${RUNTIME_SA_EMAIL},_AI_MODEL=${AI_MODEL},_AI_LOCATION=${AI_LOCATION}"
+gcloud secrets add-iam-policy-binding "${GITHUB_DEPLOY_KEY_SECRET}" \
+  --project="${PROJECT_ID}" \
+  --member="serviceAccount:${BUILD_SA_EMAIL}" \
+  --role=roles/secretmanager.secretAccessor \
+  --condition=None >/dev/null
+echo "Allowed build SA to read only the repo-scoped GitHub deploy key"
+
+common_substitutions="_SERVICE_NAME=${REPO_NAME},_REGION=${REGION},_RUNTIME_SA=${RUNTIME_SA_EMAIL},_AI_MODEL=${AI_MODEL},_AI_LOCATION=${AI_LOCATION},_GITHUB_DEPLOY_KEY_SECRET=${GITHUB_DEPLOY_KEY_SECRET}"
 
 # Inline config plus protected-main bootstrap prevents a PR from replacing its gate.
 gcloud builds triggers create github \
