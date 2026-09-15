@@ -198,6 +198,9 @@ substitutions:
 ### 4.2 輸入格式
 
 僅傳入**增量 diff**（`git diff <merge-base>...<HEAD>`），不傳整個專案，符合 NFR 的成本與延遲控制要求。
+由於 Trigger 預設是 shallow checkout，PR gate 使用每個 repo 獨立的唯讀
+GitHub Deploy Key 取得 base/head 歷史。私鑰只存於 Secret Manager，
+且僅 PR Build Service Account 擁有該 secret 的 accessor 權限。
 
 ```json
 {

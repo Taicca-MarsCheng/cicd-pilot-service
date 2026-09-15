@@ -133,6 +133,39 @@ gcloud projects remove-iam-policy-binding taicca-geminiapi \
 預期結果：connection 與其 Secret Manager token 繼續有效，Service Agent 不再
 擁有專案層級 Secret Manager Admin。
 
+### 3.1 為 PR gate 建立 repo-scoped 唯讀 Deploy Key
+
+Cloud Build Trigger 只 checkout 單一 commit。為了從 private repo 取得
+base branch 與完整 diff，每個 repo 使用獨立、唯讀的 Deploy Key；不要
+重用個人 SSH key。
+
+在管理員電腦建立無 passphrase 的專用 key（兩次 passphrase 提示都按
+Enter）：
+
+```bash
+ssh-keygen -t ed25519 \
+  -C 'cloud-build-readonly-cicd-pilot-service' \
+  -f /Users/zhengguohong/.ssh/cicd-pilot-service-cloudbuild-ro
+```
+
+到 GitHub repo **Settings → Deploy keys → Add deploy key**：
+
+- Title：`Cloud Build read-only`
+- Key：貼上 `cicd-pilot-service-cloudbuild-ro.pub` 內容
+- **不要**勾選 Allow write access
+
+私鑰存入 Secret Manager：
+
+```bash
+gcloud secrets create cicd-pilot-service-github-deploy-key \
+  --project=taicca-geminiapi \
+  --replication-policy=automatic \
+  --data-file=/Users/zhengguohong/.ssh/cicd-pilot-service-cloudbuild-ro
+```
+
+不要將私鑰內容貼到 terminal、repo 或對話。Onboarding 會在該 secret
+上只授予 Build Service Account `roles/secretmanager.secretAccessor`。
+
 ## 4. 執行 onboarding
 
 先 review `docs/onboard-new-repo.sh`。預設使用
@@ -161,6 +194,14 @@ AI_MODEL='控制台顯示的-model-id' AI_LOCATION='global' \
 
 預期結果：終端顯示 `Onboarding complete`；Cloud Build Triggers 畫面出現上述
 兩項；Cloud Run 服務尚未建立。若任一同名 Trigger 已存在，腳本會停止而不覆寫。
+
+若 Trigger 已建立後才補上 Deploy Key，執行：
+
+```bash
+./docs/update-security-gate.sh cicd-pilot-service asia-east1
+```
+
+腳本會更新受保護的 inline config 與 secret 存取權，不會重建 Trigger。
 
 ## 5. 第一次測試 PR 與必要 Status Check
 

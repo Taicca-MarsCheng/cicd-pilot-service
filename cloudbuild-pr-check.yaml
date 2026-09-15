@@ -5,16 +5,42 @@ steps:
   - id: load-trusted-security-gate
     name: gcr.io/cloud-builders/git
     entrypoint: bash
+    env:
+      - BASE_BRANCH=${_BASE_BRANCH}
+      - HEAD_BRANCH=${_HEAD_BRANCH}
+      - REPOSITORY_SSH_URL=git@github.com:${REPO_FULL_NAME}.git
+    secretEnv:
+      - GITHUB_DEPLOY_KEY
     args:
       - -ceu
       - |
+        cleanup_key() {
+          rm -rf /workspace/.ssh
+        }
+        trap cleanup_key EXIT
+
+        mkdir -p /workspace/.ssh /workspace/.trusted-security
+        chmod 0700 /workspace/.ssh
+        printf '%s\n' "$${GITHUB_DEPLOY_KEY}" > /workspace/.ssh/id_ed25519
+        chmod 0600 /workspace/.ssh/id_ed25519
+        cat > /workspace/.ssh/known_hosts <<'KNOWN_HOSTS'
+        github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+        KNOWN_HOSTS
+
+        export GIT_SSH_COMMAND='ssh -i /workspace/.ssh/id_ed25519 -o IdentitiesOnly=yes -o UserKnownHostsFile=/workspace/.ssh/known_hosts -o StrictHostKeyChecking=yes'
+        git remote set-url origin "$${REPOSITORY_SSH_URL}"
+
+        fetch_depth=(--no-tags)
+        if [[ -f .git/shallow ]]; then
+          fetch_depth+=(--unshallow)
+        fi
+        git fetch "$${fetch_depth[@]}" origin -- \
+          "+refs/heads/$${BASE_BRANCH}:refs/remotes/origin/$${BASE_BRANCH}" \
+          "+refs/heads/$${HEAD_BRANCH}:refs/remotes/origin/$${HEAD_BRANCH}"
+
         rm -rf /workspace/.trusted-security
         mkdir -p /workspace/.trusted-security
-        trusted_ref=origin/main
-        if ! git rev-parse --verify --quiet "$${trusted_ref}^{commit}" >/dev/null; then
-          git fetch --no-tags --depth=1 origin main
-          trusted_ref=FETCH_HEAD
-        fi
+        trusted_ref="refs/remotes/origin/$${BASE_BRANCH}"
         git archive "$${trusted_ref}" .security scripts/security-gate \
           | tar -x -C /workspace/.trusted-security
         chmod +x /workspace/.trusted-security/scripts/security-gate/run_gitleaks.sh
@@ -58,6 +84,12 @@ substitutions:
   # AI inference is independent from the asia-east1 deployment location.
   _AI_MODEL: gemini-3.1-flash-lite
   _AI_LOCATION: global
+  _GITHUB_DEPLOY_KEY_SECRET: cicd-pilot-service-github-deploy-key
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/${PROJECT_ID}/secrets/${_GITHUB_DEPLOY_KEY_SECRET}/versions/latest
+      env: GITHUB_DEPLOY_KEY
 
 options:
   dynamicSubstitutions: true
