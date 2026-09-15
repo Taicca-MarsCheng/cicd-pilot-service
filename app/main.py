@@ -12,9 +12,7 @@ def create_app() -> Flask:
 
     @app.get("/health")
     def health() -> Response:
-        # Controlled failure used to verify that an unhealthy candidate never
-        # receives production traffic. This commit must not remain on main.
-        return Response("rollback test\n", status=503, mimetype="text/plain")
+        return Response("ok\n", status=200, mimetype="text/plain")
 
     return app
 
