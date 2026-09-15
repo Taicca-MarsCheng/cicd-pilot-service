@@ -1,3 +1,6 @@
+import os
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -31,12 +34,32 @@ class PrivateRepositoryBootstrapTest(unittest.TestCase):
         self.assertIn("gcloud secrets add-iam-policy-binding", self.onboarding)
         self.assertIn("roles/secretmanager.secretAccessor", self.onboarding)
 
-    def test_trigger_updates_substitutions_before_inline_config(self) -> None:
-        update_command = "gcloud builds triggers update github"
-        self.assertEqual(self.updater.count(update_command), 2)
-        substitutions = self.updater.index("--update-substitutions")
-        inline_config = self.updater.index("--inline-config")
-        self.assertLess(substitutions, inline_config)
+    def test_trigger_uses_full_import_instead_of_invalid_partial_patch(self) -> None:
+        self.assertNotIn("gcloud builds triggers update github", self.updater)
+        self.assertIn("gcloud builds triggers import", self.updater)
+        self.assertIn("repositoryEventConfig:", self.updater)
+        self.assertIn("includeBuildLogs: INCLUDE_BUILD_LOGS_WITH_STATUS", self.updater)
+
+    def test_updater_generates_valid_full_trigger_config(self) -> None:
+        with tempfile.TemporaryDirectory() as fake_bin:
+            Path(fake_bin, "gcloud").symlink_to(ROOT / "tests" / "fixtures" / "gcloud")
+            env = os.environ.copy()
+            env["PATH"] = f"{fake_bin}:{env['PATH']}"
+            result = subprocess.run(
+                [
+                    str(ROOT / "docs" / "update-security-gate.sh"),
+                    "cicd-pilot-service",
+                    "asia-east1",
+                ],
+                cwd=ROOT,
+                env=env,
+                input="cicd-pilot-service\n",
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Security gate updated", result.stdout)
 
 
 if __name__ == "__main__":

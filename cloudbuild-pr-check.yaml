@@ -77,15 +77,6 @@ steps:
           --prompt-file /workspace/.trusted-security/.security/vertex-ai-prompt.md \
           --output /workspace/.vertex-review.json
 
-substitutions:
-  _SERVICE_NAME: cicd-pilot-service
-  _REGION: asia-east1
-  _RUNTIME_SA: sa-cicd-pilot-service@taicca-geminiapi.iam.gserviceaccount.com
-  # AI inference is independent from the asia-east1 deployment location.
-  _AI_MODEL: gemini-3.1-flash-lite
-  _AI_LOCATION: global
-  _GITHUB_DEPLOY_KEY_SECRET: cicd-pilot-service-github-deploy-key
-
 availableSecrets:
   secretManager:
     - versionName: projects/${PROJECT_ID}/secrets/${_GITHUB_DEPLOY_KEY_SECRET}/versions/latest
